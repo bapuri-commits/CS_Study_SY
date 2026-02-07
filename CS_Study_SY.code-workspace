@@ -1,0 +1,67 @@
+{
+	"folders": [
+		{
+			"name": "Algorithm_Drill (C++/BOJ)",
+			"path": "Algorithm_Drill"
+		},
+		{
+			"name": "GitMini (Java)",
+			"path": "GitMini"
+		}
+	],
+	"settings": {
+		// === 에디터 기본 설정 ===
+		"editor.fontSize": 14,
+		"editor.minimap.enabled": false,
+		"editor.wordWrap": "on",
+		"editor.bracketPairColorization.enabled": true,
+		"editor.guides.bracketPairs": "active",
+		"editor.suggestSelection": "first",
+		"editor.formatOnSave": true,
+
+		// === 자동 저장 ===
+		"files.autoSave": "afterDelay",
+		"files.autoSaveDelay": 1000,
+
+		// === 탐색기/검색에서 불필요한 파일 숨기기 ===
+		"files.exclude": {
+			"**/.git": true,
+			"**/.vs": true,
+			"**/.idea": true,
+			"**/.gradle": true,
+			"**/x64": true,
+			"**/Debug": true,
+			"**/Release": true,
+			"**/*.obj": true,
+			"**/*.exe": true,
+			"**/*.ilk": true,
+			"**/*.pdb": true,
+			"**/*.ipch": true,
+			"**/*.tlog": true
+		},
+		"search.exclude": {
+			"**/.git": true,
+			"**/.vs": true,
+			"**/.idea": true,
+			"**/.gradle": true,
+			"**/build": true,
+			"**/bin": true,
+			"**/x64": true,
+			"**/Debug": true,
+			"**/Release": true
+		},
+
+		// === UI 설정 ===
+		"breadcrumbs.enabled": true,
+		"workbench.editor.labelFormat": "short",
+		"explorer.confirmDelete": true,
+		"explorer.confirmDragAndDrop": true
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-vscode.cpptools",
+			"vscjava.vscode-java-pack",
+			"streetsidesoftware.code-spell-checker"
+		]
+	}
+}

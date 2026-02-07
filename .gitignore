@@ -1,0 +1,13 @@
+# === 하위 프로젝트 (각자 독립 git repo로 관리) ===
+Algorithm_Drill/
+GitMini/
+
+# === IDE/에디터 ===
+.vs/
+.idea/
+.vscode/
+
+# === OS ===
+Thumbs.db
+Desktop.ini
+.DS_Store
