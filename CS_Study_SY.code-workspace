@@ -7,6 +7,9 @@
 		{
 			"name": "GitMini (Java)",
 			"path": "GitMini"
+		},
+		{
+			"path": "BotTycoon"
 		}
 	],
 	"settings": {

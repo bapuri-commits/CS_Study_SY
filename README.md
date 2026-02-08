@@ -8,7 +8,8 @@ Cursor IDE 학습 워크스페이스 설정 저장소.
 CS_Study/
 ├── CS_Study_SY.code-workspace   # 워크스페이스 설정 파일
 ├── Algorithm_Drill/              # [별도 repo] 백준 알고리즘 학습 (C++)
-└── GitMini/                      # [별도 repo] Git 클라이언트 프로젝트 (Java)
+├── GitMini/                      # [별도 repo] Git 클라이언트 프로젝트 (Java)
+└── BotTycoon/                    # [별도 repo] BotTycoon 학습 프로젝트
 ```
 
 ## 사용법 (새 PC / 노트북에서)
@@ -18,10 +19,11 @@ CS_Study/
 3. `CS_Study_SY.code-workspace` 파일로 Cursor 열기
 
 ```bash
-git clone <이 repo URL> CS_Study
+git clone https://github.com/bapuri-commits/CS_Study_SY.git CS_Study
 cd CS_Study
 git clone https://github.com/bapuri-commits/Drilling_Algorithm.git Algorithm_Drill
-git clone <GitMini repo URL> GitMini
+git clone https://github.com/bapuri-commits/GitMini.git GitMini
+git clone https://github.com/bapuri-commits/BotTycoon-Study.git BotTycoon
 ```
 
 ## 프로젝트별 Git Remote
@@ -29,4 +31,5 @@ git clone <GitMini repo URL> GitMini
 | 프로젝트 | Remote URL |
 |----------|-----------|
 | Algorithm_Drill | `https://github.com/bapuri-commits/Drilling_Algorithm.git` |
-| GitMini | (GitHub repo 생성 후 기록) |
+| GitMini | `https://github.com/bapuri-commits/GitMini.git` |
+| BotTycoon | `https://github.com/bapuri-commits/BotTycoon-Study.git` |
