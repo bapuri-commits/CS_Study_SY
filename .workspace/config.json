@@ -1,0 +1,18 @@
+{
+    "github_user": "bapuri-commits",
+    "workspace_file": "CS_Study_SY.code-workspace",
+    "repos": [
+        {"local": "Algorithm_Drill",        "remote": "Drilling_Algorithm",            "branch": "main"},
+        {"local": "BotTycoon",              "remote": "BotTycoon-Study",               "branch": "main"},
+        {"local": "eclass_crawler",         "remote": "eclass_crawler",                "branch": "main"},
+        {"local": "GitMini",                "remote": "GitMini",                       "branch": "main"},
+        {"local": "llm-mcp-agent",          "remote": "llm-mcp-agent",                "branch": "master"},
+        {"local": "News_Agent",             "remote": "News_Agent",                    "branch": "main"},
+        {"local": "Obsidian_Daily_Calendar","remote": "Obsidian_Daily_Calendar_Plugin","branch": "master"},
+        {"local": "PixelmonServer",         "remote": "PixelmonServer",                "branch": "main"},
+        {"local": "tax_agent",              "remote": "tax_agent",                     "branch": "main"},
+        {"local": "The Record",             "remote": "The_Record",                    "branch": "main"},
+        {"local": "The_Agent",              "remote": "The_Agent",                     "branch": "main"},
+        {"local": "xrun",                   "remote": "xrun",                          "branch": "master"}
+    ]
+}

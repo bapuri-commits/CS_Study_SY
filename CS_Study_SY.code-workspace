@@ -14,8 +14,59 @@
 		{
 			"name": "The Record (Obsidian)",
 			"path": "The Record"
+		},
+		{
+			"path": "xrun"
+		},
+		{
+			"path": "Obsidian_Daily_Calendar"
+		},
+		{
+			"path": "The_Agent"
+		},
+		{
+			"name": "News_Agent (Executive Briefing)",
+			"path": "News_Agent"
+		},
+		{
+			"path": "tax_agent"
+		},
+		{
+			"path": "eclass_crawler"
+		},
+		{
+			"path": "llm-mcp-agent"
+		},
+		{
+			"path": "PixelmonServer"
+		},
+		{
+			"path": "lesson-assist"
 		}
 	],
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "CS_Study Auto Sync",
+				"type": "process",
+				"command": "python",
+				"args": [
+					"${workspaceFolder:Algorithm_Drill (C++/BOJ)}/../.workspace/sync.py",
+					"pull"
+				],
+				"runOptions": {
+					"runOn": "folderOpen"
+				},
+				"presentation": {
+					"reveal": "silent",
+					"panel": "shared",
+					"close": true
+				},
+				"problemMatcher": []
+			}
+		]
+	},
 	"settings": {
 		// === 에디터 기본 설정 ===
 		"editor.fontSize": 14,
@@ -25,11 +76,9 @@
 		"editor.guides.bracketPairs": "active",
 		"editor.suggestSelection": "first",
 		"editor.formatOnSave": true,
-
 		// === 자동 저장 ===
 		"files.autoSave": "afterDelay",
 		"files.autoSaveDelay": 1000,
-
 		// === 탐색기/검색에서 불필요한 파일 숨기기 ===
 		"files.exclude": {
 			"**/.git": true,
@@ -57,7 +106,6 @@
 			"**/Debug": true,
 			"**/Release": true
 		},
-
 		// === UI 설정 ===
 		"breadcrumbs.enabled": true,
 		"workbench.editor.labelFormat": "short",
