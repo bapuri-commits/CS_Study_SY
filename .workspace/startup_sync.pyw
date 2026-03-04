@@ -11,7 +11,6 @@ import socket
 import time
 import logging
 from pathlib import Path
-from datetime import datetime
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR / "config.json"
@@ -49,8 +48,14 @@ def git(cwd, *args):
     return r.returncode, r.stdout.strip(), r.stderr.strip()
 
 
+def _xml_escape(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def toast(title, body):
     """Windows 토스트 알림 (PowerShell, 의존성 없음)."""
+    safe_title = _xml_escape(title)
+    safe_body = _xml_escape(body)
     ps_script = f"""
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] > $null
@@ -59,8 +64,8 @@ $template = @"
 <toast>
   <visual>
     <binding template="ToastGeneric">
-      <text>{title}</text>
-      <text>{body}</text>
+      <text>{safe_title}</text>
+      <text>{safe_body}</text>
     </binding>
   </visual>
 </toast>

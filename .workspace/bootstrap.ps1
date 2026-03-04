@@ -44,7 +44,7 @@ Write-Host "  CS_Study Workspace Bootstrap" -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
 
 # ─── 1. 필수 도구 확인 ──────────────────────────────────
-Write-Host "`n[ 1/4 ] 필수 도구 확인" -ForegroundColor Cyan
+Write-Host "`n[ 1/5 ] 필수 도구 확인" -ForegroundColor Cyan
 
 $gitOk = $null -ne (Get-Command git -ErrorAction SilentlyContinue)
 $pyOk  = $null -ne (Get-Command python -ErrorAction SilentlyContinue)
@@ -84,7 +84,7 @@ if (-not $gitOk) {
 }
 
 # ─── 2. 폴더 준비 ───────────────────────────────────────
-Write-Host "`n[ 2/4 ] 폴더 준비" -ForegroundColor Cyan
+Write-Host "`n[ 2/5 ] 폴더 준비" -ForegroundColor Cyan
 
 if (-not (Test-Path $WORKSPACE)) {
     New-Item -ItemType Directory -Path $WORKSPACE -Force | Out-Null
@@ -98,7 +98,11 @@ if (-not (Test-Path $wsDir)) {
     New-Item -ItemType Directory -Path $wsDir -Force | Out-Null
 }
 
-# config.json 생성
+# config.json 생성 (이미 있으면 건너뜀 — git clone으로 받은 최신 버전 보존)
+$configPath = Join-Path $wsDir "config.json"
+if (Test-Path $configPath) {
+    Write-Host "  ● config.json 이미 존재 (유지)" -ForegroundColor Green
+} else {
 $configContent = @'
 {
     "github_user": "bapuri-commits",
@@ -121,11 +125,12 @@ $configContent = @'
     ]
 }
 '@
-Set-Content -Path (Join-Path $wsDir "config.json") -Value $configContent -Encoding UTF8
+Set-Content -Path $configPath -Value $configContent -Encoding UTF8
 Write-Host "  ✓ config.json 생성" -ForegroundColor Green
+}
 
 # ─── 3. 레포 클론 ───────────────────────────────────────
-Write-Host "`n[ 3/4 ] 레포 클론" -ForegroundColor Cyan
+Write-Host "`n[ 3/5 ] 레포 클론" -ForegroundColor Cyan
 
 $cloned = 0; $existed = 0; $failed = 0
 

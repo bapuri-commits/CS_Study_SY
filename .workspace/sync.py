@@ -100,7 +100,8 @@ def _check_startup_task():
     try:
         r = subprocess.run(
             ["schtasks", "/query", "/tn", "CS_Study Startup Sync"],
-            capture_output=True, creationflags=0x08000000,
+            capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if r.returncode == 0:
             return True
