@@ -153,8 +153,24 @@ foreach ($repo in $REPOS) {
 
 Write-Host "`n  클론: $cloned | 기존: $existed | 실패: $failed"
 
-# ─── 4. 완료 ────────────────────────────────────────────
-Write-Host "`n[ 4/4 ] 세팅 완료" -ForegroundColor Green
+# ─── 4. 부팅 자동 동기화 등록 ────────────────────────────
+Write-Host "`n[ 4/5 ] 부팅 자동 동기화" -ForegroundColor Cyan
+
+if ($pyOk) {
+    $registerScript = Join-Path $wsDir "register_startup.ps1"
+    if (Test-Path $registerScript) {
+        Write-Host "  부팅 시 자동 동기화를 등록합니다..." -ForegroundColor White
+        powershell -ExecutionPolicy Bypass -File $registerScript
+    } else {
+        Write-Host "  ⚠ register_startup.ps1 없음 — 수동 등록 필요" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  ⏭ Python 미설치 — 나중에 수동 등록하세요" -ForegroundColor Yellow
+    Write-Host "    powershell -ExecutionPolicy Bypass -File .workspace\register_startup.ps1" -ForegroundColor DarkGray
+}
+
+# ─── 5. 완료 ────────────────────────────────────────────
+Write-Host "`n[ 5/5 ] 세팅 완료" -ForegroundColor Green
 Write-Host ""
 Write-Host "  워크스페이스:  $WORKSPACE" -ForegroundColor White
 Write-Host "  레포 수:       $($REPOS.Count)개" -ForegroundColor White

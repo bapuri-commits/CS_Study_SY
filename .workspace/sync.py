@@ -93,6 +93,23 @@ def scan_unknown_folders(cfg):
     return sorted(unknown)
 
 
+def _check_startup_task():
+    """startup sync가 등록되어 있는지 확인 (Task Scheduler 또는 Startup 폴더)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        r = subprocess.run(
+            ["schtasks", "/query", "/tn", "CS_Study Startup Sync"],
+            capture_output=True, creationflags=0x08000000,
+        )
+        if r.returncode == 0:
+            return True
+    except Exception:
+        pass
+    startup_dir = Path(os.environ.get("APPDATA", "")) / r"Microsoft\Windows\Start Menu\Programs\Startup"
+    return (startup_dir / "CS_Study_Sync.vbs").exists()
+
+
 def header(text):
     print(f"\n{C.BOLD}{C.B}{'=' * 56}")
     print(f"  {text}")
@@ -264,6 +281,14 @@ def cmd_setup(cfg):
     ws = cfg.get("workspace_file", "CS_Study_SY.code-workspace")
     if (ROOT / ws).exists():
         print(f"\n  {C.G}Cursor에서 {ws} 를 열면 전체 워크스페이스 로드{C.END}")
+
+    startup_registered = _check_startup_task()
+    if startup_registered:
+        print(f"  {C.G}부팅 자동 동기화: 등록됨{C.END}")
+    else:
+        print(f"\n  {C.Y}부팅 자동 동기화 미등록{C.END}")
+        print(f"  {C.DIM}→ .workspace 폴더에서 실행:{C.END}")
+        print(f"  {C.DIM}  powershell -ExecutionPolicy Bypass -File register_startup.ps1{C.END}")
 
 
 # ──────────────────────────────────────────────────────────
