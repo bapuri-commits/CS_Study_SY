@@ -33,7 +33,8 @@ $REPOS = @(
     @{L="tax_agent";              R="tax_agent";                     B="main"},
     @{L="The Record";             R="The_Record";                    B="main"},
     @{L="The_Agent";              R="The_Agent";                     B="main"},
-    @{L="xrun";                   R="xrun";                          B="master"}
+    @{L="xrun";                   R="xrun";                          B="master"},
+    @{L="lesson-assist";          R="lesson-assist";                 B="main"}
 )
 
 Write-Host ""
@@ -113,7 +114,8 @@ $configContent = @'
         {"local": "tax_agent",              "remote": "tax_agent",                     "branch": "main"},
         {"local": "The Record",             "remote": "The_Record",                    "branch": "main"},
         {"local": "The_Agent",              "remote": "The_Agent",                     "branch": "main"},
-        {"local": "xrun",                   "remote": "xrun",                          "branch": "master"}
+        {"local": "xrun",                   "remote": "xrun",                          "branch": "master"},
+        {"local": "lesson-assist",          "remote": "lesson-assist",                 "branch": "main"}
     ]
 }
 '@

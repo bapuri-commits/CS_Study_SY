@@ -48,7 +48,8 @@ def git(cwd, *args):
 
 
 def status_of(path):
-    info = dict(exists=False, git=False, branch="", dirty=0, ahead=0, behind=0, remote=False)
+    info = dict(exists=False, git=False, branch="", dirty=0, ahead=0, behind=0,
+                remote=False, remote_url="")
     if not path.exists():
         return info
     info["exists"] = True
@@ -62,6 +63,10 @@ def status_of(path):
     rc, out, _ = git(path, "remote")
     info["remote"] = bool(out)
 
+    if info["remote"]:
+        rc, out, _ = git(path, "remote", "get-url", "origin")
+        info["remote_url"] = out if rc == 0 else ""
+
     rc, out, _ = git(path, "status", "--porcelain")
     info["dirty"] = len(out.splitlines()) if out else 0
 
@@ -71,6 +76,21 @@ def status_of(path):
             info["ahead"], info["behind"] = map(int, out.split())
 
     return info
+
+
+def expected_url(cfg, repo_entry):
+    return f"https://github.com/{cfg['github_user']}/{repo_entry['remote']}.git"
+
+
+def scan_unknown_folders(cfg):
+    """config에 없는 폴더 탐지."""
+    known = {r["local"] for r in cfg["repos"]}
+    known.update({".workspace", ".git", ".vscode", "test"})
+    unknown = []
+    for item in ROOT.iterdir():
+        if item.is_dir() and item.name not in known and not item.name.startswith("."):
+            unknown.append(item.name)
+    return sorted(unknown)
 
 
 def header(text):
@@ -126,6 +146,10 @@ def cmd_status(cfg):
     if behind_repos:
         print(f"  {C.DIM}→ python sync.py pull 으로 업데이트{C.END}")
 
+    unknown = scan_unknown_folders(cfg)
+    if unknown:
+        print(f"\n  {C.Y}미관리 폴더:{C.END} {C.DIM}{', '.join(unknown)}{C.END}")
+
 
 # ──────────────────────────────────────────────────────────
 #  pull
@@ -177,17 +201,40 @@ def cmd_pull(cfg):
 def cmd_setup(cfg):
     header("새 컴퓨터 세팅")
     user = cfg["github_user"]
-    cloned, existed, failed = 0, 0, 0
+    cloned, existed, failed, warned = 0, 0, 0, 0
 
     for r in cfg["repos"]:
         path = ROOT / r["local"]
         name = r["local"]
-        url = f"https://github.com/{user}/{r['remote']}.git"
+        url = expected_url(cfg, r)
 
         if (path / ".git").exists():
-            print(f"  {C.G}● {name:<28} 이미 설치됨{C.END}")
+            actual_url = ""
+            rc, out, _ = git(path, "remote", "get-url", "origin")
+            if rc == 0:
+                actual_url = out
+
+            if actual_url and actual_url != url:
+                print(f"  {C.Y}⚠ {name:<28} remote 불일치{C.END}")
+                print(f"    {C.DIM}예상: {url}{C.END}")
+                print(f"    {C.DIM}실제: {actual_url}{C.END}")
+                warned += 1
+            else:
+                print(f"  {C.G}● {name:<28} 이미 설치됨{C.END}")
             existed += 1
             continue
+
+        if path.exists():
+            items = list(path.iterdir())
+            if items:
+                print(f"  {C.Y}⚠ {name:<28} 폴더 존재하지만 git 아님 ({len(items)}개 파일){C.END}")
+                print(f"    {C.DIM}→ 삭제 또는 이름 변경 후 다시 실행하세요{C.END}")
+                print(f"    {C.DIM}  ren \"{name}\" \"{name}_backup\"{C.END}")
+                warned += 1
+                failed += 1
+                continue
+            else:
+                path.rmdir()
 
         print(f"  {C.B}↓ {name} 클론 중...{C.END}", end="", flush=True)
         rc, _, err = git(ROOT, "clone", "-b", r["branch"], url, r["local"])
@@ -196,11 +243,23 @@ def cmd_setup(cfg):
             print(f"\r  {C.G}✓ {name:<28} 클론 완료          {C.END}")
             cloned += 1
         else:
-            print(f"\r  {C.R}✗ {name:<28} 실패: {err[:40]}{C.END}")
+            print(f"\r  {C.R}✗ {name:<28} 실패: {err[:50]}{C.END}")
             failed += 1
 
     print(f"\n{C.DIM}{'─' * 56}{C.END}")
-    print(f"  클론 {C.G}{cloned}{C.END} | 기존 {existed} | 실패 {C.R}{failed}{C.END}")
+    print(
+        f"  클론 {C.G}{cloned}{C.END} | 기존 {existed} | "
+        f"경고 {C.Y}{warned}{C.END} | 실패 {C.R}{failed}{C.END}"
+    )
+
+    unknown = scan_unknown_folders(cfg)
+    if unknown:
+        print(f"\n  {C.Y}관리 대상 아닌 폴더 발견:{C.END}")
+        for u in unknown:
+            has_git = (ROOT / u / ".git").exists()
+            tag = "git 레포" if has_git else "일반 폴더"
+            print(f"    {C.DIM}· {u}/ ({tag}){C.END}")
+        print(f"  {C.DIM}→ 필요 없으면 삭제, 필요하면 config.json에 추가{C.END}")
 
     ws = cfg.get("workspace_file", "CS_Study_SY.code-workspace")
     if (ROOT / ws).exists():
