@@ -42,6 +42,9 @@
 		},
 		{
 			"path": "lesson-assist"
+		},
+		{
+			"path": "school_sync"
 		}
 	],
 	"tasks": {

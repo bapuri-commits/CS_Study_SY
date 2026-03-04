@@ -14,6 +14,7 @@
         {"local": "The Record",             "remote": "The_Record",                    "branch": "main"},
         {"local": "The_Agent",              "remote": "The_Agent",                     "branch": "main"},
         {"local": "xrun",                   "remote": "xrun",                          "branch": "master"},
-        {"local": "lesson-assist",          "remote": "lesson-assist",                 "branch": "main"}
+        {"local": "lesson-assist",          "remote": "lesson-assist",                 "branch": "main"},
+        {"local": "school_sync",            "remote": "school-sync",                   "branch": "main"}
     ]
 }
