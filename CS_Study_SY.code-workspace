@@ -1,6 +1,10 @@
 {
 	"folders": [
 		{
+			"name": "_Workspace",
+			"path": "."
+		},
+		{
 			"name": "Algorithm_Drill (C++/BOJ)",
 			"path": "Algorithm_Drill"
 		},

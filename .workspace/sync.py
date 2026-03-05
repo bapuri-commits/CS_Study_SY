@@ -6,6 +6,8 @@ CS_Study Workspace Sync Tool
     python sync.py              # 전체 상태 확인
     python sync.py pull         # 클린 레포만 pull (dirty 레포는 건너뜀)
     python sync.py setup        # 새 컴퓨터 세팅 (미설치 레포 clone)
+    python sync.py add <local> <remote> [branch]   # 프로젝트 등록 + 클론
+    python sync.py remove <local>                   # 프로젝트 등록 해제
 """
 
 import json
@@ -293,6 +295,212 @@ def cmd_setup(cfg):
 
 
 # ──────────────────────────────────────────────────────────
+#  add / remove helpers
+# ──────────────────────────────────────────────────────────
+def _save_config(cfg):
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=4, ensure_ascii=False)
+        f.write("\n")
+
+
+def _update_gitignore(local_name, action):
+    gitignore = ROOT / ".gitignore"
+    if not gitignore.exists():
+        return False
+    lines = gitignore.read_text(encoding="utf-8").splitlines()
+    entry = f"{local_name}/"
+
+    if action == "add":
+        if entry in lines:
+            return False
+        insert_idx = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped and stripped.endswith("/") and not stripped.startswith("#") and not stripped.startswith("."):
+                insert_idx = i + 1
+        lines.insert(insert_idx, entry)
+        gitignore.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return True
+
+    elif action == "remove":
+        new_lines = [l for l in lines if l.strip() != entry]
+        if len(new_lines) == len(lines):
+            return False
+        gitignore.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        return True
+
+    return False
+
+
+def _update_workspace_file(cfg, local_name, action):
+    ws_file = ROOT / cfg.get("workspace_file", "CS_Study_SY.code-workspace")
+    if not ws_file.exists():
+        return False
+    lines = ws_file.read_text(encoding="utf-8").splitlines()
+
+    if action == "add":
+        if any(f'"path": "{local_name}"' in l for l in lines):
+            return False
+        folders_end = None
+        for i, line in enumerate(lines):
+            if '"folders"' in line:
+                depth = 0
+                for j in range(i, len(lines)):
+                    depth += lines[j].count("[") - lines[j].count("]")
+                    if depth == 0:
+                        folders_end = j
+                        break
+                break
+        if folders_end is None:
+            return False
+        last_brace = None
+        for i in range(folders_end - 1, -1, -1):
+            if lines[i].strip() in ("}", "},"):
+                last_brace = i
+                break
+        if last_brace is None:
+            return False
+        if not lines[last_brace].strip().endswith(","):
+            lines[last_brace] = lines[last_brace].rstrip() + ","
+        new_lines = [
+            "\t\t{",
+            f'\t\t\t"path": "{local_name}"',
+            "\t\t}",
+        ]
+        for idx, nl in enumerate(new_lines):
+            lines.insert(last_brace + 1 + idx, nl)
+
+    elif action == "remove":
+        if not any(f'"path": "{local_name}"' in l for l in lines):
+            return False
+        block_start = block_end = None
+        current_block = None
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped == "{":
+                current_block = i
+            elif current_block is not None and f'"path": "{local_name}"' in line:
+                block_start = current_block
+            elif current_block is not None and stripped in ("}", "},"):
+                if block_start is not None:
+                    block_end = i
+                    break
+                current_block = None
+        if block_start is None or block_end is None:
+            return False
+        is_last_entry = not lines[block_end].strip().endswith(",")
+        del lines[block_start : block_end + 1]
+        if is_last_entry:
+            for i in range(block_start - 1, -1, -1):
+                if lines[i].strip().endswith("},"):
+                    lines[i] = lines[i].rstrip()[:-1]
+                    break
+
+    ws_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
+
+
+# ──────────────────────────────────────────────────────────
+#  add
+# ──────────────────────────────────────────────────────────
+def cmd_add(cfg):
+    args = sys.argv[2:]
+    if len(args) < 2:
+        print(f"사용법: python sync.py add <local_name> <github_remote> [branch]")
+        print(f"  예:   python sync.py add my_project My_Project")
+        print(f"        python sync.py add my_project My_Project master")
+        sys.exit(1)
+
+    local, remote = args[0], args[1]
+    branch = args[2] if len(args) > 2 else "main"
+
+    if any(r["local"] == local for r in cfg["repos"]):
+        print(f"\n  {C.Y}⚠ '{local}'은 이미 등록되어 있습니다{C.END}")
+        return
+
+    header(f"프로젝트 등록: {local}")
+
+    cfg["repos"].append({"local": local, "remote": remote, "branch": branch})
+    _save_config(cfg)
+    print(f"  {C.G}✓{C.END} config.json")
+
+    if _update_gitignore(local, "add"):
+        print(f"  {C.G}✓{C.END} .gitignore")
+    else:
+        print(f"  {C.DIM}● .gitignore (이미 존재){C.END}")
+
+    if _update_workspace_file(cfg, local, "add"):
+        print(f"  {C.G}✓{C.END} .code-workspace")
+    else:
+        print(f"  {C.DIM}● .code-workspace (이미 존재){C.END}")
+
+    path = ROOT / local
+    url = expected_url(cfg, cfg["repos"][-1])
+    if (path / ".git").exists():
+        print(f"  {C.DIM}● 레포 이미 존재{C.END}")
+    elif path.exists() and any(path.iterdir()):
+        print(f"  {C.Y}⚠ 폴더 존재하지만 git 아님 — 수동 처리 필요{C.END}")
+    else:
+        print(f"  {C.B}↓ 클론 중...{C.END}", end="", flush=True)
+        if path.exists():
+            path.rmdir()
+        rc, _, err = git(ROOT, "clone", "-b", branch, url, local)
+        if rc == 0:
+            print(f"\r  {C.G}✓{C.END} 클론 완료                     ")
+        else:
+            print(f"\r  {C.R}✗{C.END} 클론 실패: {err[:60]}")
+
+    handoff = ROOT / local / "docs" / "handoff"
+    if (ROOT / local).exists():
+        handoff.mkdir(parents=True, exist_ok=True)
+        gitkeep = handoff / ".gitkeep"
+        if not gitkeep.exists():
+            gitkeep.touch()
+        print(f"  {C.G}✓{C.END} docs/handoff/")
+
+    print(f"\n  {C.G}등록 완료!{C.END} {local} → {cfg['github_user']}/{remote} ({branch})")
+
+
+# ──────────────────────────────────────────────────────────
+#  remove
+# ──────────────────────────────────────────────────────────
+def cmd_remove(cfg):
+    args = sys.argv[2:]
+    if not args:
+        print(f"사용법: python sync.py remove <local_name>")
+        sys.exit(1)
+
+    local = args[0]
+
+    if not any(r["local"] == local for r in cfg["repos"]):
+        print(f"\n  {C.Y}⚠ '{local}'은 등록되어 있지 않습니다{C.END}")
+        return
+
+    header(f"프로젝트 해제: {local}")
+
+    cfg["repos"] = [r for r in cfg["repos"] if r["local"] != local]
+    _save_config(cfg)
+    print(f"  {C.G}✓{C.END} config.json에서 제거")
+
+    if _update_gitignore(local, "remove"):
+        print(f"  {C.G}✓{C.END} .gitignore에서 제거")
+    else:
+        print(f"  {C.DIM}● .gitignore (항목 없음){C.END}")
+
+    if _update_workspace_file(cfg, local, "remove"):
+        print(f"  {C.G}✓{C.END} .code-workspace에서 제거")
+    else:
+        print(f"  {C.DIM}● .code-workspace (항목 없음){C.END}")
+
+    path = ROOT / local
+    if path.exists():
+        print(f"\n  {C.Y}참고:{C.END} '{local}/' 폴더는 삭제하지 않았습니다.")
+        print(f"  {C.DIM}필요 없으면 직접 삭제하세요.{C.END}")
+
+    print(f"\n  {C.G}해제 완료!{C.END}")
+
+
+# ──────────────────────────────────────────────────────────
 #  main
 # ──────────────────────────────────────────────────────────
 def main():
@@ -303,12 +511,15 @@ def main():
 
     cfg = load_config()
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
-    cmds = {"status": cmd_status, "pull": cmd_pull, "setup": cmd_setup}
+    cmds = {
+        "status": cmd_status, "pull": cmd_pull, "setup": cmd_setup,
+        "add": cmd_add, "remove": cmd_remove,
+    }
 
     if cmd in cmds:
         cmds[cmd](cfg)
     else:
-        print(f"사용법: python sync.py [status | pull | setup]")
+        print(f"사용법: python sync.py [status | pull | setup | add | remove]")
         sys.exit(1)
 
 
