@@ -31,6 +31,38 @@ alwaysApply: true
 - 사용자가 기기 이동을 암시: "노트북에서 이어서 할게" 등
 - 의미 있는 작업 단위 완료 시 AI가 "핸드오프 갱신할까요?" **제안 가능** (강제하지 않음)
 
+## 커밋/푸시 워크플로우
+
+핸드오프 파일을 작성한 뒤 **항상 별도 커밋 + push**한다.
+
+### 프로젝트 핸드오프
+
+해당 프로젝트 레포에서:
+
+```
+git add docs/handoff/YYYY-MM-DD.md
+git commit -m "session handoff: YYYY-MM-DD"
+git push
+```
+
+### 워크스페이스 핸드오프
+
+CS_Study_SY 루트 레포(`G:\CS_Study`)에서:
+
+```
+git add .workspace/handoff/YYYY-MM-DD.md
+git commit -m "session handoff: YYYY-MM-DD"
+git push
+```
+
+### 규칙
+
+- 핸드오프 커밋은 작업 커밋과 **분리**. 메시지는 `session handoff: YYYY-MM-DD` 고정.
+- 한 세션에서 여러 프로젝트에 핸드오프를 썼으면 **각 레포마다 반복**.
+- push 범위는 핸드오프를 쓴 레포만 (최소 범위).
+- push 실패 시 사용자에게 알리고 수동 처리 안내.
+- `session-handoff.mdc` 등 Cursor rule을 수정한 경우 워크스페이스 레포 커밋에 함께 포함 가능.
+
 ## 종합 트리거
 
 "전체 현황", "프로젝트 현황" 요청 시:
