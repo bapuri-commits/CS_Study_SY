@@ -4,7 +4,9 @@ CS_Study Workspace Sync Tool
 
 사용법:
     python sync.py              # 전체 상태 확인
+    python sync.py sync         # 양방향 동기화 (push → pull)
     python sync.py pull         # 클린 레포만 pull (dirty 레포는 건너뜀)
+    python sync.py push         # 클린 레포 중 ahead 커밋만 push
     python sync.py setup        # 새 컴퓨터 세팅 (미설치 레포 clone)
     python sync.py add <local> <remote> [branch]   # 프로젝트 등록 + 클론
     python sync.py remove <local>                   # 프로젝트 등록 해제
@@ -120,11 +122,34 @@ def header(text):
 
 
 # ──────────────────────────────────────────────────────────
+#  shared helpers
+# ──────────────────────────────────────────────────────────
+def _print_warnings(states, context=""):
+    """미푸시 커밋, 미커밋 변경 경고를 출력."""
+    ahead_repos = [(s["name"], s["ahead"]) for s in states if s["git"] and s["ahead"]]
+    dirty_repos = [(s["name"], s["dirty"]) for s in states if s["git"] and s["dirty"]]
+
+    if not ahead_repos and not dirty_repos:
+        return
+
+    print(f"\n{C.BOLD}{C.Y}  ⚠ 동기화 주의사항{C.END}")
+    if ahead_repos:
+        for name, count in ahead_repos:
+            print(f"  {C.B}  ↑ {name:<26} {count}개 커밋 미푸시{C.END}")
+        if context != "push":
+            print(f"  {C.DIM}  → sync.py push 또는 sync.py sync 로 일괄 push{C.END}")
+    if dirty_repos:
+        for name, count in dirty_repos:
+            print(f"  {C.Y}  ● {name:<26} {count}개 파일 미커밋{C.END}")
+        print(f"  {C.DIM}  → 커밋 후 push 필요{C.END}")
+
+
+# ──────────────────────────────────────────────────────────
 #  status
 # ──────────────────────────────────────────────────────────
 def cmd_status(cfg):
     header("CS_Study 워크스페이스 상태")
-    missing, dirty, behind_repos = [], [], []
+    missing, dirty, behind_repos, ahead_repos = [], [], [], []
 
     for r in cfg["repos"]:
         path = ROOT / r["local"]
@@ -145,6 +170,7 @@ def cmd_status(cfg):
             dirty.append(name)
         if s["ahead"]:
             tags.append(f"{C.B}↑{s['ahead']}{C.END}")
+            ahead_repos.append(name)
         if s["behind"]:
             tags.append(f"{C.R}↓{s['behind']}{C.END}")
             behind_repos.append(name)
@@ -159,12 +185,17 @@ def cmd_status(cfg):
         f"  총 {total}개 | "
         f"{C.G}설치 {total - len(missing)}{C.END} | "
         f"{C.Y}변경 {len(dirty)}{C.END} | "
+        f"{C.B}미푸시 {len(ahead_repos)}{C.END} | "
         f"{C.R}업데이트 {len(behind_repos)}{C.END}"
     )
     if missing:
         print(f"\n  {C.DIM}→ python sync.py setup 으로 미설치 레포 클론{C.END}")
+    if ahead_repos:
+        print(f"  {C.DIM}→ python sync.py push 으로 미푸시 커밋 전송{C.END}")
     if behind_repos:
         print(f"  {C.DIM}→ python sync.py pull 으로 업데이트{C.END}")
+    if ahead_repos or behind_repos:
+        print(f"  {C.DIM}→ python sync.py sync 으로 양방향 동기화 (push+pull){C.END}")
 
     unknown = scan_unknown_folders(cfg)
     if unknown:
@@ -172,11 +203,12 @@ def cmd_status(cfg):
 
 
 # ──────────────────────────────────────────────────────────
-#  pull
+#  push
 # ──────────────────────────────────────────────────────────
-def cmd_pull(cfg):
-    header("Pull (클린 레포만)")
-    pulled, skipped, uptodate = 0, 0, 0
+def cmd_push(cfg):
+    header("Push (클린 레포 중 ahead만)")
+    pushed, skipped, uptodate, failed = 0, 0, 0, 0
+    post_states = []
 
     for r in cfg["repos"]:
         path = ROOT / r["local"]
@@ -189,17 +221,79 @@ def cmd_pull(cfg):
         if s["dirty"]:
             print(f"  {C.Y}⏭ {name:<28} 로컬 변경 있음 — 건너뜀{C.END}")
             skipped += 1
+            post_states.append(s | {"name": name})
+            continue
+        if s["ahead"] == 0:
+            uptodate += 1
+            continue
+
+        rc, _, err = git(path, "push")
+        if rc == 0:
+            print(f"  {C.G}↑ {name:<28} {s['ahead']}개 커밋 push{C.END}")
+            pushed += 1
+        else:
+            print(f"  {C.R}✗ {name:<28} push 실패: {err[:40]}{C.END}")
+            failed += 1
+
+    # 워크스페이스 레포 자체도 push (config.json 변경 등)
+    ws_status = status_of(ROOT)
+    if ws_status["git"] and ws_status["remote"] and ws_status["ahead"] > 0 and ws_status["dirty"] == 0:
+        rc, _, err = git(ROOT, "push")
+        if rc == 0:
+            print(f"  {C.G}↑ {'(워크스페이스)':<28} {ws_status['ahead']}개 커밋 push{C.END}")
+            pushed += 1
+        else:
+            print(f"  {C.R}✗ {'(워크스페이스)':<28} push 실패: {err[:40]}{C.END}")
+            failed += 1
+    elif ws_status["git"] and ws_status["ahead"] > 0 and ws_status["dirty"] > 0:
+        post_states.append(ws_status | {"name": "(워크스페이스)"})
+
+    print(f"\n{C.DIM}{'─' * 56}{C.END}")
+    print(
+        f"  push {C.G}{pushed}{C.END} | "
+        f"최신 {uptodate} | "
+        f"건너뜀 {C.Y}{skipped}{C.END} | "
+        f"실패 {C.R}{failed}{C.END}"
+    )
+
+    if post_states:
+        _print_warnings(post_states, context="push")
+
+
+# ──────────────────────────────────────────────────────────
+#  pull
+# ──────────────────────────────────────────────────────────
+def cmd_pull(cfg):
+    header("Pull (클린 레포만)")
+    pulled, skipped, uptodate, failed = 0, 0, 0, 0
+    post_states = []
+
+    for r in cfg["repos"]:
+        path = ROOT / r["local"]
+        s = status_of(path)
+        name = r["local"]
+
+        if not s["git"] or not s["remote"]:
+            skipped += 1
+            continue
+        if s["dirty"]:
+            print(f"  {C.Y}⏭ {name:<28} 로컬 변경 있음 — 건너뜀{C.END}")
+            skipped += 1
+            post_states.append(s | {"name": name})
             continue
 
         rc, _, _ = git(path, "fetch", "--quiet")
         if rc != 0:
             print(f"  {C.R}✗ {name:<28} fetch 실패{C.END}")
+            failed += 1
             continue
 
         rc, out, _ = git(path, "rev-list", "--left-right", "--count", "HEAD...@{u}")
-        b = 0
+        a, b = 0, 0
         if rc == 0 and len(out.split()) == 2:
-            b = int(out.split()[1])
+            a, b = map(int, out.split())
+        if a > 0:
+            post_states.append({"name": name, "git": True, "ahead": a, "dirty": 0})
         if b == 0:
             uptodate += 1
             continue
@@ -210,9 +304,116 @@ def cmd_pull(cfg):
             pulled += 1
         else:
             print(f"  {C.R}✗ {name:<28} pull 실패 (수동 처리 필요){C.END}")
+            failed += 1
 
     print(f"\n{C.DIM}{'─' * 56}{C.END}")
-    print(f"  업데이트 {C.G}{pulled}{C.END} | 최신 {uptodate} | 건너뜀 {C.Y}{skipped}{C.END}")
+    print(
+        f"  업데이트 {C.G}{pulled}{C.END} | "
+        f"최신 {uptodate} | "
+        f"건너뜀 {C.Y}{skipped}{C.END} | "
+        f"실패 {C.R}{failed}{C.END}"
+    )
+
+    if post_states:
+        _print_warnings(post_states)
+
+
+# ──────────────────────────────────────────────────────────
+#  sync (push + pull)
+# ──────────────────────────────────────────────────────────
+def cmd_sync(cfg):
+    header("양방향 동기화 (Push → Pull)")
+    pushed, pull_updated = 0, 0
+    skipped, failed = 0, 0
+    dirty_repos = []
+
+    for r in cfg["repos"]:
+        path = ROOT / r["local"]
+        s = status_of(path)
+        name = r["local"]
+
+        if not s["git"] or not s["remote"]:
+            skipped += 1
+            continue
+        if s["dirty"]:
+            print(f"  {C.Y}⏭ {name:<28} 로컬 변경 있음 — 건너뜀{C.END}")
+            dirty_repos.append((name, s["dirty"]))
+            skipped += 1
+            continue
+
+        # push ahead commits first
+        if s["ahead"] > 0:
+            rc, _, err = git(path, "push")
+            if rc == 0:
+                print(f"  {C.G}↑ {name:<28} {s['ahead']}개 커밋 push{C.END}")
+                pushed += 1
+            else:
+                print(f"  {C.R}✗ {name:<28} push 실패: {err[:40]}{C.END}")
+                failed += 1
+                continue
+
+        rc, _, _ = git(path, "fetch", "--quiet")
+        if rc != 0:
+            print(f"  {C.R}✗ {name:<28} fetch 실패{C.END}")
+            failed += 1
+            continue
+
+        rc, out, _ = git(path, "rev-list", "--left-right", "--count", "HEAD...@{u}")
+        b = 0
+        if rc == 0 and len(out.split()) == 2:
+            b = int(out.split()[1])
+        if b == 0:
+            continue
+
+        rc, _, _ = git(path, "pull", "--ff-only")
+        if rc == 0:
+            print(f"  {C.G}↓ {name:<28} {b}개 커밋 pull{C.END}")
+            pull_updated += 1
+        else:
+            print(f"  {C.R}✗ {name:<28} pull 실패 (수동 처리 필요){C.END}")
+            failed += 1
+
+    # 워크스페이스 레포도 동기화
+    ws = status_of(ROOT)
+    if ws["git"] and ws["remote"] and ws["dirty"] == 0:
+        if ws["ahead"] > 0:
+            rc, _, err = git(ROOT, "push")
+            if rc == 0:
+                print(f"  {C.G}↑ {'(워크스페이스)':<28} {ws['ahead']}개 커밋 push{C.END}")
+                pushed += 1
+            else:
+                print(f"  {C.R}✗ {'(워크스페이스)':<28} push 실패: {err[:40]}{C.END}")
+                failed += 1
+        rc, _, _ = git(ROOT, "fetch", "--quiet")
+        if rc == 0:
+            rc, out, _ = git(ROOT, "rev-list", "--left-right", "--count", "HEAD...@{u}")
+            b = 0
+            if rc == 0 and len(out.split()) == 2:
+                b = int(out.split()[1])
+            if b > 0:
+                rc, _, _ = git(ROOT, "pull", "--ff-only")
+                if rc == 0:
+                    print(f"  {C.G}↓ {'(워크스페이스)':<28} {b}개 커밋 pull{C.END}")
+                    pull_updated += 1
+                else:
+                    print(f"  {C.R}✗ {'(워크스페이스)':<28} pull 실패{C.END}")
+                    failed += 1
+    elif ws["git"] and ws["dirty"] > 0:
+        dirty_repos.append(("(워크스페이스)", ws["dirty"]))
+
+    print(f"\n{C.DIM}{'─' * 56}{C.END}")
+    print(
+        f"  push {C.G}{pushed}{C.END} | "
+        f"pull {C.G}{pull_updated}{C.END} | "
+        f"건너뜀 {C.Y}{skipped}{C.END} | "
+        f"실패 {C.R}{failed}{C.END}"
+    )
+
+    if dirty_repos:
+        print(f"\n{C.BOLD}{C.Y}  ⚠ 미커밋 변경 — 동기화에서 제외됨{C.END}")
+        for name, count in dirty_repos:
+            print(f"  {C.Y}  ● {name:<26} {count}개 파일{C.END}")
+        print(f"  {C.DIM}  → 커밋 후 다시 sync.py sync 실행{C.END}")
 
 
 # ──────────────────────────────────────────────────────────
@@ -512,14 +713,15 @@ def main():
     cfg = load_config()
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     cmds = {
-        "status": cmd_status, "pull": cmd_pull, "setup": cmd_setup,
-        "add": cmd_add, "remove": cmd_remove,
+        "status": cmd_status, "sync": cmd_sync,
+        "pull": cmd_pull, "push": cmd_push,
+        "setup": cmd_setup, "add": cmd_add, "remove": cmd_remove,
     }
 
     if cmd in cmds:
         cmds[cmd](cfg)
     else:
-        print(f"사용법: python sync.py [status | pull | setup | add | remove]")
+        print(f"사용법: python sync.py [status | sync | pull | push | setup | add | remove]")
         sys.exit(1)
 
 

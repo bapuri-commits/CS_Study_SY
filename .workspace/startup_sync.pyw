@@ -1,8 +1,10 @@
 """
-CS_Study Startup Sync — 부팅 시 자동 동기화
+CS_Study Startup Sync — 부팅 시 양방향 자동 동기화
 
 Windows 로그인 시 Task Scheduler에 의해 실행됨.
 콘솔 없이 백그라운드로 동작하며, 결과를 토스트 알림 + 로그로 표시.
+
+동작 순서: 네트워크 대기 → push(미푸시 커밋) → pull(원격 변경) → 알림
 """
 
 import json
@@ -91,11 +93,27 @@ def load_config():
         return json.load(f)
 
 
-def sync_repos(cfg):
-    """모든 레포 fetch + pull. 결과 dict 반환."""
-    result = {"pulled": [], "uptodate": 0, "skipped": [], "failed": []}
+def _get_repo_info(path):
+    """레포의 dirty/ahead/behind 상태를 빠르게 확인."""
+    info = {"dirty": False, "ahead": 0, "behind": 0}
+    rc, out, _ = git(path, "status", "--porcelain")
+    info["dirty"] = bool(out)
+    rc, out, _ = git(path, "rev-list", "--left-right", "--count", "HEAD...@{u}")
+    if rc == 0 and len(out.split()) == 2:
+        info["ahead"], info["behind"] = map(int, out.split())
+    return info
 
-    for r in cfg["repos"]:
+
+def sync_repos(cfg):
+    """모든 레포 push + pull. 결과 dict 반환."""
+    result = {
+        "pushed": [], "pulled": [], "uptodate": 0,
+        "skipped": [], "dirty": [], "failed": [],
+    }
+
+    all_repos = list(cfg["repos"])
+
+    for r in all_repos:
         path = ROOT / r["local"]
         name = r["local"]
 
@@ -108,14 +126,28 @@ def sync_repos(cfg):
             result["skipped"].append(f"{name} (remote 없음)")
             continue
 
-        rc, out, _ = git(path, "status", "--porcelain")
-        if out:
+        info = _get_repo_info(path)
+
+        if info["dirty"]:
+            result["dirty"].append(name)
             result["skipped"].append(f"{name} (로컬 변경)")
             continue
 
+        # Phase 1: Push ahead commits
+        if info["ahead"] > 0:
+            rc, _, err = git(path, "push")
+            if rc == 0:
+                result["pushed"].append(f"{name} ({info['ahead']})")
+                log.info(f"  pushed: {name} — {info['ahead']} commits")
+            else:
+                result["failed"].append(f"{name} (push)")
+                log.warning(f"  push failed: {name} — {err[:60]}")
+                continue
+
+        # Phase 2: Fetch + Pull
         rc, _, _ = git(path, "fetch", "--quiet")
         if rc != 0:
-            result["failed"].append(name)
+            result["failed"].append(f"{name} (fetch)")
             continue
 
         rc, out, _ = git(path, "rev-list", "--left-right", "--count", "HEAD...@{u}")
@@ -132,8 +164,37 @@ def sync_repos(cfg):
             result["pulled"].append(f"{name} ({behind})")
             log.info(f"  pulled: {name} — {behind} commits")
         else:
-            result["failed"].append(name)
+            result["failed"].append(f"{name} (pull)")
             log.warning(f"  pull failed: {name}")
+
+    # 워크스페이스 레포 자체도 동기화
+    if (ROOT / ".git").exists():
+        ws_info = _get_repo_info(ROOT)
+        if ws_info["dirty"]:
+            result["dirty"].append("(workspace)")
+        else:
+            if ws_info["ahead"] > 0:
+                rc, _, err = git(ROOT, "push")
+                if rc == 0:
+                    result["pushed"].append(f"(workspace) ({ws_info['ahead']})")
+                    log.info(f"  pushed: workspace — {ws_info['ahead']} commits")
+                else:
+                    result["failed"].append("(workspace) (push)")
+                    log.warning(f"  push failed: workspace — {err[:60]}")
+            rc, _, _ = git(ROOT, "fetch", "--quiet")
+            if rc == 0:
+                rc, out, _ = git(ROOT, "rev-list", "--left-right", "--count", "HEAD...@{u}")
+                behind = 0
+                if rc == 0 and len(out.split()) == 2:
+                    behind = int(out.split()[1])
+                if behind > 0:
+                    rc, _, _ = git(ROOT, "pull", "--ff-only")
+                    if rc == 0:
+                        result["pulled"].append(f"(workspace) ({behind})")
+                        log.info(f"  pulled: workspace — {behind} commits")
+                    else:
+                        result["failed"].append("(workspace) (pull)")
+                        log.warning("  pull failed: workspace")
 
     return result
 
@@ -156,24 +217,30 @@ def main():
     result = sync_repos(cfg)
     elapsed = time.time() - start
 
+    pushed_count = len(result["pushed"])
     pulled_count = len(result["pulled"])
     skipped_count = len(result["skipped"])
+    dirty_count = len(result["dirty"])
     failed_count = len(result["failed"])
 
     log.info(
-        f"완료: 업데이트 {pulled_count} | "
+        f"완료: push {pushed_count} | pull {pulled_count} | "
         f"최신 {result['uptodate']} | "
         f"건너뜀 {skipped_count} | "
         f"실패 {failed_count} | "
         f"{elapsed:.1f}초"
     )
+    if result["dirty"]:
+        log.info(f"  미커밋: {', '.join(result['dirty'])}")
 
     lines = []
+    if pushed_count:
+        lines.append(f"↑ {pushed_count}개 push")
     if pulled_count:
-        lines.append(f"↓ {pulled_count}개 업데이트")
+        lines.append(f"↓ {pulled_count}개 pull")
     lines.append(f"✓ {result['uptodate']}개 최신")
-    if skipped_count:
-        lines.append(f"⏭ {skipped_count}개 건너뜀")
+    if dirty_count:
+        lines.append(f"⚠ {dirty_count}개 미커밋: {', '.join(result['dirty'])}")
     if failed_count:
         lines.append(f"✗ {failed_count}개 실패")
     lines.append(f"{elapsed:.1f}초 소요")

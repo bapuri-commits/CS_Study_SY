@@ -71,6 +71,11 @@
             "local": "school_sync",
             "remote": "school-sync",
             "branch": "main"
+        },
+        {
+            "local": "PrivateLLM",
+            "remote": "PrivateLLM",
+            "branch": "main"
         }
     ]
 }
