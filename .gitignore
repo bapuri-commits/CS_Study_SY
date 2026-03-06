@@ -20,6 +20,10 @@ PrivateLLM/
 .idea/
 .vscode/
 
+# === 로그/임시 ===
+.workspace/sync.log
+test/
+
 # === OS ===
 Thumbs.db
 Desktop.ini
