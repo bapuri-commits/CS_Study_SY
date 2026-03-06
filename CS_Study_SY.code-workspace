@@ -49,6 +49,9 @@
 		},
 		{
 			"path": "school_sync"
+		},
+		{
+			"path": "PrivateLLM"
 		}
 	],
 	"tasks": {
