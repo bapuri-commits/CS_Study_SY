@@ -22,6 +22,7 @@ PrivateLLM/
 
 # === 로그/임시 ===
 .workspace/sync.log
+.workspace/__pycache__/
 test/
 
 # === OS ===

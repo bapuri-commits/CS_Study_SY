@@ -10,6 +10,7 @@ CS_Study Workspace Sync Tool
     python sync.py setup        # 새 컴퓨터 세팅 (미설치 레포 clone)
     python sync.py add <local> <remote> [branch]   # 프로젝트 등록 + 클론
     python sync.py remove <local>                   # 프로젝트 등록 해제
+    python sync.py leave                             # 기기 떠나기 전 체크 (미커밋/미푸시 경고)
 """
 
 import json
@@ -702,6 +703,60 @@ def cmd_remove(cfg):
 
 
 # ──────────────────────────────────────────────────────────
+#  leave — 기기 떠나기 전 체크리스트
+# ──────────────────────────────────────────────────────────
+def cmd_leave(cfg):
+    header("기기 떠나기 전 체크")
+    dirty_repos = []
+    ahead_repos = []
+    clean = 0
+
+    all_targets = [(r["local"], ROOT / r["local"]) for r in cfg["repos"]]
+    all_targets.append(("(워크스페이스)", ROOT))
+
+    for name, path in all_targets:
+        if not (path / ".git").exists():
+            continue
+        s = status_of(path)
+        if not s["git"]:
+            continue
+
+        issues = []
+        if s["dirty"]:
+            issues.append(f"{C.Y}미커밋 {s['dirty']}개{C.END}")
+            dirty_repos.append((name, s["dirty"]))
+        if s["ahead"]:
+            issues.append(f"{C.B}미푸시 {s['ahead']}개{C.END}")
+            ahead_repos.append((name, s["ahead"]))
+
+        if issues:
+            print(f"  {C.Y}⚠{C.END} {C.BOLD}{name:<28}{C.END} {'  '.join(issues)}")
+        else:
+            clean += 1
+
+    print(f"\n{C.DIM}{'─' * 56}{C.END}")
+
+    if not dirty_repos and not ahead_repos:
+        print(f"\n  {C.G}✓ 모든 레포가 동기화 상태입니다. 안전하게 떠나셔도 됩니다.{C.END}")
+        return
+
+    if dirty_repos:
+        print(f"\n  {C.BOLD}{C.Y}⚠ 미커밋 변경 ({len(dirty_repos)}개 레포){C.END}")
+        for name, count in dirty_repos:
+            print(f"    {C.Y}● {name:<26} {count}개 파일{C.END}")
+        print(f"  {C.DIM}→ 커밋하지 않으면 다른 기기에서 이 변경을 볼 수 없습니다.{C.END}")
+
+    if ahead_repos:
+        print(f"\n  {C.BOLD}{C.B}⚠ 미푸시 커밋 ({len(ahead_repos)}개 레포){C.END}")
+        for name, count in ahead_repos:
+            print(f"    {C.B}● {name:<26} {count}개 커밋{C.END}")
+        print(f"  {C.DIM}→ push하지 않으면 다른 기기에서 충돌이 발생할 수 있습니다.{C.END}")
+        print(f"  {C.DIM}→ python sync.py push 로 일괄 push 가능{C.END}")
+
+    print()
+
+
+# ──────────────────────────────────────────────────────────
 #  main
 # ──────────────────────────────────────────────────────────
 def main():
@@ -716,12 +771,13 @@ def main():
         "status": cmd_status, "sync": cmd_sync,
         "pull": cmd_pull, "push": cmd_push,
         "setup": cmd_setup, "add": cmd_add, "remove": cmd_remove,
+        "leave": cmd_leave,
     }
 
     if cmd in cmds:
         cmds[cmd](cfg)
     else:
-        print(f"사용법: python sync.py [status | sync | pull | push | setup | add | remove]")
+        print(f"사용법: python sync.py [status | sync | pull | push | setup | add | remove | leave]")
         sys.exit(1)
 
 
