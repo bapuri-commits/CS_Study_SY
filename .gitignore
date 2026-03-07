@@ -24,6 +24,7 @@ PrivateLLM/
 .workspace/sync.log
 .workspace/__pycache__/
 test/
+QuickDrop/
 
 # === OS ===
 Thumbs.db

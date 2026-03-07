@@ -52,6 +52,9 @@
 		},
 		{
 			"path": "PrivateLLM"
+		},
+		{
+			"path": "QuickDrop"
 		}
 	],
 	"tasks": {

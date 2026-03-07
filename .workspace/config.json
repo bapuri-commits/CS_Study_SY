@@ -76,6 +76,11 @@
             "local": "PrivateLLM",
             "remote": "PrivateLLM",
             "branch": "main"
+        },
+        {
+            "local": "QuickDrop",
+            "remote": "Quick_Drop",
+            "branch": "main"
         }
     ]
 }
